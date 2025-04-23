@@ -1,9 +1,14 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
+import openai
+import os
 
 app = Flask(__name__)
 CORS(app, origins=["https://autowebai.netlify.app"])
+
+# Clé API OpenAI stockée dans l’environnement (via Render)
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -11,13 +16,25 @@ def analyze():
     title = data.get('title', '')
     content = data.get('content', '')
 
-    improved = f"Voici une version améliorée du contenu de la page '{title}' :\n\n{content}\n\n[Version améliorée par IA]"
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un assistant expert en rédaction web et SEO."},
+                {"role": "user", "content": f"Améliore ce contenu de page :\n\n{content}"}
+            ]
+        )
 
-    return jsonify({
-        "original_title": title,
-        "original_content": content,
-        "suggested_update": improved
-    })
+        improved = response["choices"][0]["message"]["content"]
+
+        return jsonify({
+            "original_title": title,
+            "original_content": content,
+            "suggested_update": improved
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/fetch-wp', methods=['POST'])
 def fetch_wp():
