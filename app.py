@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import requests
-import openai
 import os
+import openai
 
 app = Flask(__name__)
 CORS(app, origins=["https://autowebai.netlify.app"])
 
-# Clé API OpenAI stockée dans l’environnement (via Render)
+# Configurer OpenAI avec une variable d'environnement
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 @app.route('/analyze', methods=['POST'])
@@ -16,25 +16,13 @@ def analyze():
     title = data.get('title', '')
     content = data.get('content', '')
 
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un assistant expert en rédaction web et SEO."},
-                {"role": "user", "content": f"Améliore ce contenu de page :\n\n{content}"}
-            ]
-        )
+    improved = f"Voici une version améliorée du contenu de la page '{title}' :\n\n{content}\n\n[Version améliorée par IA]"
 
-        improved = response["choices"][0]["message"]["content"]
-
-        return jsonify({
-            "original_title": title,
-            "original_content": content,
-            "suggested_update": improved
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({
+        "original_title": title,
+        "original_content": content,
+        "suggested_update": improved
+    })
 
 @app.route('/fetch-wp', methods=['POST'])
 def fetch_wp():
@@ -61,6 +49,28 @@ def fetch_wp():
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/generate', methods=['POST'])
+def generate():
+    data = request.json
+    prompt = data.get('prompt')
+
+    if not prompt:
+        return jsonify({"error": "Aucun prompt fourni"}), 400
+
+    try:
+        completion = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un assistant expert en optimisation de contenu web."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        result = completion.choices[0].message.content
+        return jsonify({"response": result})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run()
