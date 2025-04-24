@@ -32,8 +32,8 @@ def analyze_url():
         # Prompt à envoyer à l'IA
         prompt = f"Voici le contenu d'un site web :\n{content}\n\nAméliore ce contenu pour le rendre plus engageant, plus clair, et optimisé pour le SEO. Propose une version modifiée mais conserve le sens."
 
-        # Appel à OpenAI avec la méthode à jour (>=v1.0.0)
-        response = openai.chat.completions.create(
+        # Appel OpenAI compatible avec openai==0.28
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un expert en amélioration de contenu web."},
@@ -43,7 +43,7 @@ def analyze_url():
             max_tokens=700
         )
 
-        suggestion = response.choices[0].message.content.strip()
+        suggestion = response["choices"][0]["message"]["content"].strip()
 
         return jsonify({
             'original': content,
