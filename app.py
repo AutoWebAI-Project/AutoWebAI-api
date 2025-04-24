@@ -6,12 +6,10 @@ import requests
 from bs4 import BeautifulSoup
 
 app = Flask(__name__)
-
-# Autorise uniquement l'appel depuis ton frontend Netlify
 CORS(app, origins=["https://autowebai.netlify.app"])
 
-# Clé d'API OpenAI depuis les variables d'environnement
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# ✅ Nouvelle syntaxe pour le SDK OpenAI >= 1.0.0
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @app.route('/analyze-url', methods=['POST'])
 def analyze_url():
@@ -25,15 +23,14 @@ def analyze_url():
         page = requests.get(url)
         soup = BeautifulSoup(page.content, 'html.parser')
 
-        # Extraction du contenu texte utile
+        # Extraction du texte depuis les balises HTML
         texts = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4'])
         content = '\n'.join([t.get_text(strip=True) for t in texts])
 
         # Prompt à envoyer à l'IA
         prompt = f"Voici le contenu d'un site web :\n{content}\n\nAméliore ce contenu pour le rendre plus engageant, plus clair, et optimisé pour le SEO. Propose une version modifiée mais conserve le sens."
 
-        # Appel OpenAI compatible avec openai==0.28
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un expert en amélioration de contenu web."},
@@ -43,7 +40,7 @@ def analyze_url():
             max_tokens=700
         )
 
-        suggestion = response["choices"][0]["message"]["content"].strip()
+        suggestion = response.choices[0].message.content.strip()
 
         return jsonify({
             'original': content,
