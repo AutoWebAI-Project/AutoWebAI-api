@@ -15,17 +15,34 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 def analyze_url():
     data = request.json
     url = data.get('url')
+    cms = data.get('cms', 'auto')  # CMS envoyé depuis le frontend (ou "auto")
 
     if not url:
         return jsonify({'error': 'URL manquante'}), 400
 
     try:
+        # 🎯 Ajoute une ligne d'intro selon le CMS choisi (MVP)
+        if cms == "wordpress":
+            content = "[WordPress détecté]\n"
+        elif cms == "shopify":
+            content = "[Shopify détecté]\n"
+        elif cms == "wix":
+            content = "[Wix détecté]\n"
+        elif cms == "webflow":
+            content = "[Webflow détecté]\n"
+        else:
+            content = ""
+
+        # 🕷️ Scraping générique du contenu HTML
         page = requests.get(url)
         soup = BeautifulSoup(page.content, 'html.parser')
 
         texts = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4'])
-        content = '\n'.join([t.get_text(strip=True) for t in texts])
+        extracted = '\n'.join([t.get_text(strip=True) for t in texts])
 
+        content += extracted  # Combine CMS tag + contenu extrait
+
+        # 🧠 Prompt pour améliorer le contenu avec OpenAI
         prompt = f"Voici le contenu d'un site web :\n{content}\n\nAméliore ce contenu pour le rendre plus engageant, plus clair, et optimisé pour le SEO. Propose une version modifiée mais conserve le sens."
 
         response = client.chat.completions.create(
