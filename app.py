@@ -1,176 +1,81 @@
-import React, { useState } from 'react';
-import './App.css';
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import openai
+import os
+import requests
+from bs4 import BeautifulSoup
 
-function App() {
-  const [url, setUrl] = useState("");
-  const [cms, setCms] = useState("auto");
-  const [goal, setGoal] = useState("vente");
-  const [tone, setTone] = useState("professionnel");
-  const [loading, setLoading] = useState(false);
-  const [original, setOriginal] = useState("");
-  const [suggestion, setSuggestion] = useState("");
-  const [error, setError] = useState("");
+app = Flask(__name__)
+CORS(app, origins=["https://autowebai.netlify.app"])
 
-  const handleAnalyze = async () => {
-    if (!url.trim()) {
-      alert("Merci d'entrer une URL valide.");
-      return;
-    }
+# Configuration de l'API OpenAI
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-    setLoading(true);
-    setOriginal("");
-    setSuggestion("");
-    setError("");
+@app.route('/analyze-url', methods=['POST'])
+def analyze_url():
+    data = request.json
+    url = data.get('url')
+    cms = data.get('cms', 'auto')
+    goal = data.get('goal', 'vente')
+    tone = data.get('tone', 'professionnel')
 
-    try {
-      const response = await fetch("https://autowebai-api.onrender.com/analyze-url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ url, cms, goal, tone }), // 🆕 envoi des nouvelles options
-      });
+    if not url:
+        return jsonify({'error': 'URL manquante'}), 400
 
-      const data = await response.json();
+    try:
+        # Introduction personnalisée selon le CMS
+        if cms == "wordpress":
+            content = "[WordPress détecté]\n"
+        elif cms == "shopify":
+            content = "[Shopify détecté]\n"
+        elif cms == "wix":
+            content = "[Wix détecté]\n"
+        elif cms == "webflow":
+            content = "[Webflow détecté]\n"
+        else:
+            content = ""
 
-      console.log("Réponse de l'API :", data);
+        # Extraction du contenu HTML du site
+        page = requests.get(url)
+        soup = BeautifulSoup(page.content, 'html.parser')
+        texts = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4'])
+        extracted = '\n'.join([t.get_text(strip=True) for t in texts])
+        content += extracted
 
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setOriginal(data.original);
-        setSuggestion(data.suggestion);
-      }
-    } catch (err) {
-      console.error("Erreur lors de la requête vers l'API :", err);
-      setError("Une erreur est survenue lors de la connexion à l'IA.");
-    } finally {
-      setLoading(false);
-    }
-  };
+        # Prompt personnalisé pour OpenAI
+        prompt = (
+            f"Voici le contenu d'un site web :\n{content}\n\n"
+            f"Améliore ce contenu pour le rendre plus engageant, plus clair, et optimisé pour le SEO.\n"
+            f"L'objectif du site est : {goal}.\n"
+            f"Utilise un ton : {tone}.\n"
+            f"Propose une version modifiée mais conserve le sens."
+        )
 
-  const handleCopy = () => {
-    if (suggestion) {
-      navigator.clipboard.writeText(suggestion)
-        .then(() => alert("Contenu copié dans le presse-papiers"))
-        .catch(() => alert("Erreur lors de la copie"));
-    }
-  };
+        # Appel à OpenAI
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un expert en amélioration de contenu web."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=700
+        )
 
-  const handleEmail = () => {
-    if (suggestion) {
-      const subject = encodeURIComponent("Suggestion IA pour votre site");
-      const body = encodeURIComponent(suggestion);
-      window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    }
-  };
+        suggestion = response.choices[0].message.content.strip()
 
-  const handleApplyCMS = () => {
-    alert("Fonctionnalité bientôt disponible 😉");
-  };
+        return jsonify({
+            'original': content,
+            'suggestion': suggestion,
+            'options': [
+                "✅ Copier le contenu",
+                "📧 Recevoir par email",
+                "🔧 Appliquer automatiquement (nécessite connexion au CMS)"
+            ]
+        })
 
-  return (
-    <div className="App">
-      <h1>Bienvenue sur AutoWebAI</h1>
-      <p>Entrez l'URL de votre site pour générer une version optimisée par IA :</p>
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-      {/* Sélecteur de CMS */}
-      <div style={{ marginBottom: "10px" }}>
-        <label>
-          CMS :
-          <select
-            value={cms}
-            onChange={(e) => setCms(e.target.value)}
-            style={{ marginLeft: "10px", padding: "6px", fontSize: "16px" }}
-          >
-            <option value="auto">Détection automatique</option>
-            <option value="wordpress">WordPress</option>
-            <option value="shopify">Shopify</option>
-            <option value="wix">Wix</option>
-            <option value="webflow">Webflow</option>
-            <option value="autre">Autre</option>
-          </select>
-        </label>
-      </div>
-
-      {/* Sélecteur d'objectif */}
-      <div style={{ marginBottom: "10px" }}>
-        <label>
-          Objectif :
-          <select
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            style={{ marginLeft: "10px", padding: "6px", fontSize: "16px" }}
-          >
-            <option value="vente">Vendre un produit</option>
-            <option value="lead">Obtenir des contacts (leads)</option>
-            <option value="blog">Partager des infos / articles</option>
-            <option value="portfolio">Montrer un projet / CV</option>
-          </select>
-        </label>
-      </div>
-
-      {/* Sélecteur de ton */}
-      <div style={{ marginBottom: "15px" }}>
-        <label>
-          Ton souhaité :
-          <select
-            value={tone}
-            onChange={(e) => setTone(e.target.value)}
-            style={{ marginLeft: "10px", padding: "6px", fontSize: "16px" }}
-          >
-            <option value="professionnel">Professionnel</option>
-            <option value="convivial">Convivial</option>
-            <option value="persuasif">Persuasif</option>
-            <option value="créatif">Créatif</option>
-          </select>
-        </label>
-      </div>
-
-      <input
-        type="text"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="https://exemple.com"
-        style={{ width: "60%", padding: "10px", fontSize: "16px" }}
-      />
-      <br />
-      <button className="cta" onClick={handleAnalyze} disabled={loading}>
-        {loading ? "Analyse en cours..." : "Analyser le site"}
-      </button>
-
-      {error && (
-        <div style={{ color: "red", marginTop: "20px" }}>
-          <strong>Erreur :</strong> {error}
-        </div>
-      )}
-
-      {original && (
-        <div className="result">
-          <h2>Contenu extrait :</h2>
-          <p>{original}</p>
-        </div>
-      )}
-
-      {suggestion && (
-        <div className="result">
-          <h2>Suggestion IA :</h2>
-          <p>{suggestion}</p>
-          <div style={{ marginTop: "15px" }}>
-            <button onClick={handleCopy} style={{ marginRight: "10px" }}>
-              ✅ Copier
-            </button>
-            <button onClick={handleEmail} style={{ marginRight: "10px" }}>
-              📧 Envoyer par email
-            </button>
-            <button onClick={handleApplyCMS}>
-              🔧 Appliquer au CMS
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default App;
+if __name__ == '__main__':
+    app.run()
