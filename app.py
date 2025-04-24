@@ -19,7 +19,7 @@ def generate():
         return jsonify({'error': 'Prompt manquant'}), 400
 
     try:
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un assistant expert en amélioration de contenu web et SEO."},
@@ -52,7 +52,7 @@ def analyze_url():
 
         prompt = f"Voici le contenu d'un site web :\n{content}\n\nAméliore ce contenu pour le rendre plus engageant, plus clair, et optimisé pour le SEO. Propose une version modifiée mais conserve le sens."
 
-        response = openai.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un assistant expert en amélioration de site web."},
