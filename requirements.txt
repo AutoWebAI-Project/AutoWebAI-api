@@ -2,5 +2,5 @@ flask
 flask-cors
 requests
 beautifulsoup4
-openai>=1.0.0
+openai==1.14.3
 gunicorn
